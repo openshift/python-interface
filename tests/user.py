@@ -20,13 +20,13 @@ class TestUser(unittest.TestCase):
                 passwd="notvalid")
 
         status, res = li.get_user()
-        self.assertEqual(status, 'Not Found')
+        self.assertEqual(status, 'Authorization Required')
 
     def test_invalid_password(self):
         li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
                 passwd="notvalid")
         status, res = li.get_user()
-        self.assertEqual(status, 'Not Found')
+        self.assertEqual(status, 'Authorization Required')
 
 
     def test_user(self):
@@ -45,6 +45,5 @@ if __name__ == '__main__':
     #li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'), passwd=os.getenv('OPENSHIFT_PASSWD'))
     #status, res = li.get_user()
     #self.assertEqual(status, 'OK')
-
 
     unittest.main()

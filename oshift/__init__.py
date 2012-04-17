@@ -44,7 +44,7 @@ def config_parser():
     parser.set_defaults(VERBOSE=False)
     parser.set_defaults(DEBUG=False)
     parser.add_option("-d", action="store_true", dest="DEBUG", help="enable DEBUG (default true)")
-    parser.add_option("-a", "--action", help="action you want to take (list|create|store)")
+    #parser.add_option("-a", "--action", help="action you want to take (list|create|store)")
     parser.add_option("-i", "--ip", default="openshift.redhat.com", help="ip addaress of your devenv")
     parser.add_option("-v", action="store_true", dest="VERBOSE", help="enable VERBOSE printing")
     parser.add_option("-u", "--user", default="pruan@redhat.com", help="User name")
@@ -87,10 +87,8 @@ class Response(object):
         if len(self.body) > 2:  # just in cases where API return just '{}'
             try:
                 self.json = json.loads(self.body)
-                #self.json = cjson.decode(self.body)
             except:
-                import simplejson
-                self.json = simplejson.loads(self.body)
+                return self.body
 
         # the acutal JSON response is key by the url (w/o the leading slash
             self.data =self.json['data']
@@ -119,8 +117,8 @@ class RestApi(object):
     host = '127.0.0.1'
     port = (80, 443)
     secure = 1 # 0 or 1
-    username ='pruan@redhat.com'
-    password = 'vostok08',
+    username = None
+    password = None
     responseCls = Response
     headers = None
     response = None
@@ -179,17 +177,15 @@ class RestApi(object):
                 }
     def request(self, url, method, headers=None, params=None):
         conn = self.connection
-        self.url = self.base_uri + url
+        if url.startswith("https://"):
+            self.url = url # self.base_uri + url
+        else:
+            self.url = self.base_uri + url
+
         log.debug("URL: %s" % self.url)
         if self.headers is None:
             self.headers = self._get_auth_headers(self.username, self.password)
-        #else:
-        #    self.headers = headers
-        if self.verbose:
-            conn.set_debuglevel(1)
-        else:
-            conn.set_debuglevel(0)
-
+        conn.set_debuglevel(0)
         if method == 'GET':
             conn.request(method=method,url=self.url,headers=self.headers)
         else:
@@ -199,9 +195,9 @@ class RestApi(object):
 
         self.response = self.responseCls(raw_response, self.url)
         self.data = self.response.parse_body()
-
+        
         return (self.response.error, raw_response)
-
+    
 
     def GET(self, url):
         """ wrapper around request() """
@@ -233,12 +229,20 @@ class Openshift(object):
 
         self.rest = RestApi(host=host, username=self.user, password=self.passwd, debug=debug, verbose=verbose)
 
-    def get_href(self, top_level_url, target_link):
+    def get_href(self, top_level_url, target_link, domain_name=None):
         status, res = self.rest.request(method='GET', url=top_level_url)
         index = target_link.upper()
-        res = self.rest.response.json['data'][0]['links'][index]
-        return (res['href'], res['method'])
+        if domain_name is None:
+            res = self.rest.response.json['data'][0]['links'][index]
+            return (res['href'], res['method'])
 
+        else:  # domain name is specified, now find a match
+            json_data = self.rest.response.json['data']
+            for jd in json_data:
+                if jd['id'] == domain_name:
+                    res = jd['links'][index]
+                    return (res['href'], res['method'])
+        
     ##### /user  (sshkey)
     def get_user(self):
         (status, raw_response) = self.rest.request(method='GET', url='/user')
@@ -283,13 +287,11 @@ class Openshift(object):
 
 
     ##### /domains
-    def create_domain(self, name):
+    def domain_create(self, name, rhlogin='pruan@redhat.com'):
         log.debug("Creating domain '%s'" % name)
-        #ssh_path = os.path.expanduser(ssh_key)
-        #ssh_key_str = open(ssh_path, 'r').read().split(' ')[1]
         TESTDATA = {
-        'namespace': name,
-        'rhlogin': 'pruan@redhat.com'
+        'id': name,
+        'rhlogin': rhlogin
         }
 
         params = urllib.urlencode(TESTDATA)
@@ -301,38 +303,39 @@ class Openshift(object):
             log.info("Domain creation failed, reason: %s" % self.rest.response.body)
         return (self.rest.response.status,self.rest.response)
 
-    def delete_domain(self, force=None):
-        """ destory a user's domain, if no name is given, figure it out"""
 
-        url, method = self.get_href('/domains', 'delete')
+    def domain_delete(self, domain_name, force=True):
+        """ destory a user's domain, if no name is given, figure it out"""
+        url, method = self.get_href('/domains', 'delete', domain_name)
+
         if force:
             params = urllib.urlencode({'force': 'true'})
         (status, raw_response)= self.rest.request(method=method,  url=url, params=params)
         return (status, raw_response)
 
 
-    def get_domain(self):
+    def domain_get(self, name):
         log.debug("Getting domain information...")
-        url, method = self.get_href('/domains', 'get')
+        url, method = self.get_href('/domains', 'get', name)
         (status, raw_response) = self.rest.request(method=method, url=url)
 
         if status == 'OK':
-            return (status, self.rest.response.json['data']['namespace'])
+            return (status, self.rest.response.json['data']['id'])
         else:
             return (status, raw_response)
 
-    def update_domain(self, new_name):
+    def domain_update(self, new_name):
         params = urllib.urlencode({'namespace': new_name})
         url, method = self.get_href("/domains", 'update')
         (status, res) = self.rest.request(method=method, url=url, params=params)
         return (status, res)
 
-    def list_applications(self):
+    def app_list(self):
         url, method = self.get_href('/domains', 'list_applications')
         (status, res) = self.rest.request(method=method, url=url)
         return (status, self.rest.response.json)
 
-    def add_application(self, app_name, app_type, scaleable=False):
+    def app_create(self, app_name, app_type, scale='false'):
         url, method = self.get_href('/domains', 'add_application')
         valid_options = self.rest.response.json['data'][0]['links']['ADD_APPLICATION']['required_params'][1]['valid_options']
 
@@ -414,7 +417,7 @@ class Openshift(object):
         return self.do_action(params)
 
 
-    def update_key(self, kwargs): 
+    def key_update(self, kwargs): #key_name, key_path, key_type='ssh-rsa'):
         key_path = kwargs['key']
         key_name = kwargs['name']
         if kwargs.has_key('key_type'):
@@ -426,8 +429,8 @@ class Openshift(object):
 
         params = {'op_type':'keys', 'action': 'UPDATE', 'name': key_name, 'content': ssh_key_str, 'type': key_type}
         return self.do_action(params)
-
-    def get_key(self, name):
+    
+    def key_get(self, name):
         """  returns the actual key content """
         params = {'action': 'GET', 'name': name, 'op_type': 'keys'}
         status, res = self.do_action(params)
@@ -466,27 +469,30 @@ class Openshift(object):
 
 
     ##### apps
-    def delete_app(self, app_name):
+    def app_create_scale(self, app_name, app_type, scale):
+        self.app_create(app_name=app_name, app_type=app_type, scale=scale)
+        
+    def app_delete(self, app_name):
         params = {'action': 'DELETE', 'app_name': app_name}
         return self.app_action(params)
 
-    def start_app(self, app_name):
+    def app_start(self, app_name):    
         params = {"action": 'START', 'app_name': app_name}
         return self.app_action(params)
 
-    def stop_app(self, app_name):
+    def app_stop(self, app_name):
         params = {"action": 'STOP', 'app_name': app_name}
         return self.app_action(params)
 
-    def restart_app(self, app_name):
+    def app_restart(self, app_name):
         params = {"action": 'RESTART', 'app_name': app_name}
         return self.app_action(params)
 
-    def force_stop_app(self, app_name):
+    def app_force_stop(self, app_name):
         params = {"action": 'FORCE_STOP', 'app_name': app_name}
         return self.app_action(params)
 
-    def get_descriptor(self, app_name):
+    def app_get_descriptor(self, app_name):
         params = {'action': 'GET', 'app_name': app_name}
         return self.app_action(params)
 
@@ -549,30 +555,46 @@ class Openshift(object):
             log.error("Can not find app matching your request '%s'"% app_name)
             return ("Error", None)
 
+    def get_gears(self, app_name, domain_name=None):
+        """ return gears information """
+        params = {"action": 'GET_GEARS', 'app_name': app_name}
+        status, res =  self.app_action(params)
+        gear_info = self.rest.response.json['data']
+        gear_counts = len(self.rest.response.json['data'][0]['components'])
+        return (self.rest.response.json['data'], gear_counts) 
+
     ################################
     # cartridges
     ################################
-    def delete_cartridge(self, app_name, name):
+    def cartridge_list(self, app_name):
+        params = {"action": 'LIST_CARTRIDGES', 'app_name': app_name}
+        return self.app_action(params)
+
+    def cartridge_add(self, app_name, cart_name):
+        params = {"action": 'ADD_CARTRIDGE', 'app_name': app_name,
+                'cart_name': cart_name}
+        return self.app_action(params)
+    def cartridge_delete(self, app_name, name):
         params = {"action": 'DELETE', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
-
-    def start_cartridge(self, app_name, name):
+    
+    def cartridge_start(self, app_name, name):
         params = {"action": 'START', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
-
-    def stop_cartridge(self, app_name, name):
+    
+    def cartridge_stop(self, app_name, name):
         params = {"action": 'STOP', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
-
-    def restart_cartridge(self, app_name, name):
+     
+    def cartridge_restart(self, app_name, name):
         params = {"action": 'RESTART', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
-
-    def reload_cartridge(self, app_name, name):
+    
+    def cartridge_reload(self, app_name, name):
         params = {"action": 'RELOAD', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
-
-    def get_cartridge(self, app_name, name):
+ 
+    def cartridge_get(self, app_name, name):
         params = {"action": 'GET', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
 

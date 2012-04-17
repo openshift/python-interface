@@ -24,14 +24,14 @@ class TestUser(unittest.TestCase):
             'Missing instance ip variable!')
 
         li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
-                passwd="notvalid")
+                passwd=os.getenv('OPENSHIFT_PASSWD'))
 
-        status, res = li.create_domain('invalid domain name')
-        expected = 'Invalid namespace: invalid domain name. Namespace must only contain alphanumeric characters.'
+        status, res = li.domain_create('invalid domain name')
+        expected = "Invalid namespace: 'invalid domain name'. Namespace must only contain alphanumeric characters."
         error_msg = res.json['messages'][0]['text']
         self.assertEqual(error_msg, expected)
 
-    def test_create_domain(self):
+    def test_domain_create(self):
         self.assertTrue(os.environ.has_key('OPENSHIFT_USER'),
             'Missing Openshift username!')
         self.assertTrue(os.environ.has_key('OPENSHIFT_PASSWD'),
@@ -40,11 +40,12 @@ class TestUser(unittest.TestCase):
             'Missing instance ip variable!')
         li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
             passwd=os.getenv('OPENSHIFT_PASSWD'))
-        status, res = li.create_domain(self.valid_domain_name)
+        status, res = li.domain_create(self.valid_domain_name)
         expected_status = 201
         self.assertEqual(status, expected_status)
 
-    def test_delete_domain(self):
+    def test_domain_delete(self):
+
         self.assertTrue(os.environ.has_key('OPENSHIFT_USER'),
             'Missing Openshift username!')
         self.assertTrue(os.environ.has_key('OPENSHIFT_PASSWD'),
@@ -53,9 +54,18 @@ class TestUser(unittest.TestCase):
             'Missing instance ip variable!')
         li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
             passwd=os.getenv('OPENSHIFT_PASSWD'))
-        status, res = li.delete_domain(force=True)
+        status, res = li.domain_delete(self.valid_domain_name, force=True)
 
         self.assertEqual(status, 'No Content')
 
 if __name__ == '__main__':
+    """
+    li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
+            passwd=os.getenv('OPENSHIFT_PASSWD'))
+
+    status, res = li.domain_create('invalid domain name')
+    expected = "Invalid namespace: 'invalid domain name'. Namespace must only contain alphanumeric characters."
+    error_msg = res.json['messages'][0]['text']
+    self.assertEqual(error_msg, expected)
+    """ 
     unittest.main()
