@@ -238,10 +238,13 @@ class Openshift(object):
 
         else:  # domain name is specified, now find a match
             json_data = self.rest.response.json['data']
-            for jd in json_data:
-                if jd['id'] == domain_name:
-                    res = jd['links'][index]
-                    return (res['href'], res['method'])
+            if json_data:
+                for jd in json_data:
+                    if jd['id'] == domain_name:
+                        res = jd['links'][index]
+                        return (res['href'], res['method'])
+            else:
+                return(None, None)
         
     ##### /user  (sshkey)
     def get_user(self):
@@ -317,12 +320,13 @@ class Openshift(object):
     def domain_get(self, name):
         log.debug("Getting domain information...")
         url, method = self.get_href('/domains', 'get', name)
-        (status, raw_response) = self.rest.request(method=method, url=url)
+        if url:
+            (status, raw_response) = self.rest.request(method=method, url=url)
 
-        if status == 'OK':
-            return (status, self.rest.response.json['data']['id'])
+            if status == 'OK':
+                return (status, self.rest.response.json['data']['id'])
         else:
-            return (status, raw_response)
+            return ('Not Found', self.rest.response.json['data'])
 
     def domain_update(self, new_name):
         params = urllib.urlencode({'namespace': new_name})
@@ -337,7 +341,7 @@ class Openshift(object):
 
     def app_create(self, app_name, app_type, scale='false'):
         url, method = self.get_href('/domains', 'add_application')
-        valid_options = self.rest.response.json['data'][0]['links']['ADD_APPLICATION']['required_params'][1]['valid_options']
+        valid_options = self.rest.response.json['data'][0]['links']['ADD_APPLICATION']['optional_params'][0]['valid_options']
 
         if app_type not in valid_options:
             log.error("The app type you specified '%s' is not supported!" % app_type)
@@ -345,7 +349,7 @@ class Openshift(object):
         data_dict = {
                      'name' : app_name,
                      'cartridge' : app_type,
-                     'scale' : scaleable
+                     'scale' : scale
                      }
         params = urllib.urlencode(data_dict)
         log.debug("URL: %s, METHOD: %s" % (url, method))
@@ -519,36 +523,39 @@ class Openshift(object):
         for application
         """
         # step1. find th url and method
-        status, res = self.list_applications()
+        status, res = self.app_list()
         app_found = False
         action = params['action']
         app_name = params['app_name']
 
         if params.has_key('cart_name'):
-            cart_name = kwargs['cart_name']
-
+            cart_name = params['cart_name']
         for app in res['data']:
             if app['name'] == app_name:
                 # found match, now do your stuff
                 params_dict = app['links'][action]
                 method = params_dict['method']
                 log.info("Action: %s" % action)
+                data = {}
                 if len(params_dict['required_params']) > 0:
                     param_name = params_dict['required_params'][0]['name']
-                    data = {}
-
+                    rp = params_dict['required_params'][0]
+                    #data[param_name] = cart_name #'name'] = rp['name']
                     for rp in params_dict['required_params']:
+                        # construct the data 
                         param_name = rp['name']
                         if param_name == 'event':
                             data[param_name] = rp['valid_options']
                         else:
-                            data[param_name] = params[param_name]
+                            data[param_name] = cart_name #params['op_type']
+                            #data[param_name] = params[param_name]
                         print "DATA: %s" % data
                     data = urllib.urlencode(data)
                 else:
                     data = None
-
-                (status, raw_response) =  self.rest.request(method=method, url=params_dict['href'], params=data)
+                req_url = params_dict['href']
+                print "DATA: %s, URL: %s, METHOD: %s " % (data, req_url, method)
+                (status, raw_response) =  self.rest.request(method=method, url=req_url, params=data)
                 app_found = True
                 return (status, raw_response)
         if not app_found:
@@ -573,7 +580,10 @@ class Openshift(object):
     def cartridge_add(self, app_name, cart_name):
         params = {"action": 'ADD_CARTRIDGE', 'app_name': app_name,
                 'cart_name': cart_name}
+        #params = {"action": 'ADD_CARTRIDGE', 'name': app_name, "op_type": 'cartridge', 'cart_name': cart_name}
         return self.app_action(params)
+    
+        #return self.app_action(params)
     def cartridge_delete(self, app_name, name):
         params = {"action": 'DELETE', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
@@ -610,6 +620,14 @@ if __name__ == '__main__':
     (options, args)= config_parser()
     li = Openshift(host=options.ip, user=options.user, passwd=options.password,
             debug=options.DEBUG,verbose=options.VERBOSE)
-    status, res =li.get_user()
+    #status, res = li.domain_create('pppx')
+    #status, res =li.domain_delete('pppx')
+    #status, res =li.get_user()
+    #status, res = li.app_delete(app_name='myphp')
+    #status, res = li.app_create(app_name='myphp', app_type='php-5.3')
+    #status, res = li.cartridge_add(app_name='myphp', cart_name='mysql-5.1')
+    #status, res = li.cartridge_add(app_name='myphp', cart_name='mysql-5.1')
+    status, res = li.cartridge_delete(app_name='myphp', name='mysql-5.1')
+    #tatus, res = li.domain_delete('ppp')
     log.info("STATUS: %s, RES: %s" % (status, res))
 

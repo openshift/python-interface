@@ -11,7 +11,9 @@ from oshift import *
 
 class TestUser(unittest.TestCase):
     """
-    Test domain get REST API
+    Test domain get REST API, under /broker/rest/dodmains
+    The available actions are:
+        UPDATE, DELETE, LIST_APPLICATIONS, GET, ADD_APPLICATION, 
     """
     valid_domain_name = "autotest"
 
