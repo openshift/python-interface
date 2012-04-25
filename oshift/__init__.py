@@ -47,9 +47,15 @@ def config_parser():
     #parser.add_option("-a", "--action", help="action you want to take (list|create|store)")
     parser.add_option("-i", "--ip", default="openshift.redhat.com", help="ip addaress of your devenv")
     parser.add_option("-v", action="store_true", dest="VERBOSE", help="enable VERBOSE printing")
-    parser.add_option("-u", "--user", default="pruan@redhat.com", help="User name")
-    parser.add_option("-p", "--password", default="vostok08", help="RHT password")
+    parser.add_option("-u", "--user", default=None, help="User name")
+    parser.add_option("-p", "--password", default=None, help="RHT password")
     (options, args) = parser.parse_args()
+    
+    if options.user is None:
+        options.user = os.getenv('OPENSHIFT_user_email')
+ 
+    if options.password is None:
+        options.password = os.getenv('OPENSHIFT_user_passwd')
 
     return options, args
 
@@ -177,6 +183,9 @@ class RestApi(object):
                 }
     def request(self, url, method, headers=None, params=None):
         conn = self.connection
+        if url is None:
+            raise OpenShiftException("No valid url found!")
+
         if url.startswith("https://"):
             self.url = url # self.base_uri + url
         else:
@@ -217,8 +226,8 @@ class Openshift(object):
     wrappers class around REST API so use can use it with python
     """
     rest = None
-    user = 'pruan@redhat.com'
-    passwd = 'vostok08'
+    user = None 
+    passwd = None 
 
 
     def __init__(self, host, user=None, passwd=None, debug=False, verbose=False):
@@ -506,7 +515,7 @@ class Openshift(object):
 
     def add_cartridge(self, app_name, cart_name):
         params = {"action": 'ADD_CARTRIDGE', 'app_name': app_name,
-                'cart_name': cart_name}
+                'cart_name': cart_name, 'cartridge': cart_name}
         return self.app_action(params)
 
     def add_alias(self, app_name, alias):
@@ -621,13 +630,13 @@ if __name__ == '__main__':
     li = Openshift(host=options.ip, user=options.user, passwd=options.password,
             debug=options.DEBUG,verbose=options.VERBOSE)
     #status, res = li.domain_create('pppx')
-    #status, res =li.domain_delete('pppx')
+    status, res =li.domain_delete('pppx')
     #status, res =li.get_user()
     #status, res = li.app_delete(app_name='myphp')
     #status, res = li.app_create(app_name='myphp', app_type='php-5.3')
     #status, res = li.cartridge_add(app_name='myphp', cart_name='mysql-5.1')
     #status, res = li.cartridge_add(app_name='myphp', cart_name='mysql-5.1')
-    status, res = li.cartridge_delete(app_name='myphp', name='mysql-5.1')
+    #status, res = li.cartridge_delete(app_name='myphp', name='mysql-5.1')
     #tatus, res = li.domain_delete('ppp')
     log.info("STATUS: %s, RES: %s" % (status, res))
 
