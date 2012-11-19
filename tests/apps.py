@@ -54,6 +54,5 @@ if __name__ == '__main__':
             passwd=os.getenv('OPENSHIFT_PASSWD'))
     status, res = li.app_create(app_name='myapp', app_type='php-5.3')
     print status
-    self.info("xxx", 1)
     """
     unittest.main()
