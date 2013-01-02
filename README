@@ -1,7 +1,7 @@
 README
 ==============================================================================
 
-This is a python intereface for the new Openshift REST API.  Check the file
+This is a python interface for the new Openshift REST API.  Check the file
 oshift/__init__.py for the class file.
 
 [2012-11-19]
