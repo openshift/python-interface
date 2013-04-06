@@ -11,7 +11,7 @@ from oshift import *
 
 class TestUser(unittest.TestCase):
     """
-    Test domain get REST API, under /broker/rest/dodmains
+    Test domain get REST API, under /broker/rest/domains
     The available actions are:
         UPDATE, DELETE, LIST_APPLICATIONS, GET, ADD_APPLICATION, 
     """
