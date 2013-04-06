@@ -57,8 +57,8 @@ class TestUser(unittest.TestCase):
         li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
             passwd=os.getenv('OPENSHIFT_PASSWD'))
         status, res = li.domain_delete(self.valid_domain_name, force=True)
-
-        self.assertEqual(status, 'No Content')
+        expected_status = 204
+        self.assertEqual(status, expected_status)
 
 if __name__ == '__main__':
     """
