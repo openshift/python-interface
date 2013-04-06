@@ -29,8 +29,8 @@ class TestUser(unittest.TestCase):
                 passwd=os.getenv('OPENSHIFT_PASSWD'))
 
         status, res = li.domain_create('invalid domain name')
-        expected = "Invalid namespace: 'invalid domain name'. Namespace must only contain alphanumeric characters."
-        error_msg = res.json['messages'][0]['text']
+        expected = "Invalid namespace. Namespace must only contain alphanumeric characters."
+        error_msg = res()['messages'][0]['text']
         self.assertEqual(error_msg, expected)
 
     def test_domain_create(self):
