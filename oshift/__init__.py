@@ -155,12 +155,11 @@ class RestApi(object):
             self.url = self.base_uri + url
         log.debug("URL: %s" % self.url)
         auth = (self.username, self.password) #self._get_auth_headers()
-        #my_config = None #{'verbose' : sys.stderr}
-        my_config = {'verbose' : sys.stderr}
+
         method_call = getattr(requests, method.lower())
         self.response = method_call(
                 url=self.url, auth=auth, params=params,
-                timeout=130, verify=False, config=my_config)
+                timeout=130, verify=False)
         try:
             raw_response = self.response.raw
         except Exception as e:
