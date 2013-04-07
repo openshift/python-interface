@@ -15,9 +15,7 @@ class TestUser(unittest.TestCase):
     """
     def test_invalid_username(self):
         li = Openshift(host=os.getenv('OPENSHIFT_IP'), user='pppppp',
-            passwd=os.getenv('OPENSHIFT_PASSWD'))
-        li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
-                passwd="notvalid")
+                       passwd=os.getenv('OPENSHIFT_PASSWD'))
 
         status, res = li.get_user()
         expected_status = 401
@@ -25,7 +23,8 @@ class TestUser(unittest.TestCase):
 
     def test_invalid_password(self):
         li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
-                passwd="notvalid")
+                       passwd="notvalid")
+
         status, res = li.get_user()
         expected_status = 401
         self.assertEqual(status, expected_status)
