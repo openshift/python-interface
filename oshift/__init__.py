@@ -7,53 +7,57 @@ version = 2.0  changed the basic support to use the new requests module
 
 """
 
-import requests
-import urllib
 import os
-import inspect
-import exceptions
-
-import logging, logging.handlers
 import sys
+import exceptions
+import logging
 from optparse import OptionParser
 import time
 import traceback
 import json
 
+import requests
+
+
 class OpenShiftException(exceptions.BaseException):
     pass
+
 
 class OpenShiftLoginException(OpenShiftException):
     """Authorization failed."""
     pass
 
+
 class OpenShiftNullDomainException(OpenShiftException):
     """User's domain hasn't been initialized."""
     pass
+
 
 class OpenShift500Exception(OpenShiftException):
     """Internal Server Error"""
     pass
 
 #### set this to True if we want to enable performance analysis
-DOING_PERFORMANCE_ANALYSIS=False
+DOING_PERFORMANCE_ANALYSIS = False
 
 global log
+
 
 def config_logger():
     # create formatter
     formatter = logging.Formatter("%(levelname)s [%(asctime)s] %(message)s",
-            "%H:%M:%S")
+                                  "%H:%M:%S")
     logger = logging.getLogger("dump_logs")
     log_formatter = logging.Formatter(
         "%(name)s: %(asctime)s - %(levelname)s: %(message)s")
-    
+
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(formatter)
     stream_handler.setLevel(logging.DEBUG)
     logger.setLevel(logging.DEBUG)
     logger.addHandler(stream_handler)
     return logger
+
 
 def config_parser():
     # these are required options.
@@ -66,10 +70,10 @@ def config_parser():
     parser.add_option("-u", "--user", default=None, help="User name")
     parser.add_option("-p", "--password", default=None, help="RHT password")
     (options, args) = parser.parse_args()
-    
+
     if options.user is None:
         options.user = os.getenv('OPENSHIFT_user_email')
- 
+
     if options.password is None:
         options.password = os.getenv('OPENSHIFT_user_passwd')
 
@@ -90,6 +94,7 @@ def timeit(method):
         return result, te-ts
 
     return timed
+
 
 class conditional_decorator(object):
     def __init__(self, dec, condition):
@@ -118,9 +123,8 @@ class RestApi(object):
     verbose = False
     debug = False
 
-
     def __init__(self, host=None, port=443, username=username, password=password,
-            debug=False, verbose=False):
+                 debug=False, verbose=False):
         if host is not None:
             self.host = host
 
@@ -134,7 +138,7 @@ class RestApi(object):
             self.verbose = verbose
 
         self.debug = debug
-        self.base_uri = "https://" +  host + "/broker/rest"
+        self.base_uri = "https://" + host + "/broker/rest"
 
     def _get_auth_headers(self, username=None, password=None):
         if username:
@@ -144,22 +148,24 @@ class RestApi(object):
             self.password = password
 
         return (self.username, self.password)
-    
+
     def request(self, url, method, headers=None, params=None):
         """
         wrapper method for Requests' methods
         """
         if url.startswith("https://"):
-            self.url = url # self.base_uri + url
+            self.url = url  # self.base_uri + url
         else:
             self.url = self.base_uri + url
         log.debug("URL: %s" % self.url)
-        auth = (self.username, self.password) #self._get_auth_headers()
+        auth = (self.username, self.password)  # self._get_auth_headers()
 
-        method_call = getattr(requests, method.lower())
+        if method:
+            method = method.lower()
+        method_call = getattr(requests, method)
         self.response = method_call(
-                url=self.url, auth=auth, params=params,
-                timeout=130, verify=False)
+            url=self.url, auth=auth, params=params,
+            timeout=130, verify=False)
         try:
             raw_response = self.response.raw
         except Exception as e:
@@ -170,16 +176,19 @@ class RestApi(object):
 
         self.data = self.response.json
 
-        if self.response.error == 'Internal Server Error':
-            raise OpenShift500Exception('Internal Server Error: %s'%self.data)
+        # see https://github.com/kennethreitz/requests/blob/master/requests/status_codes.py
+        if self.response.status_code == requests.codes.internal_server_error:
+            raise OpenShift500Exception('Internal Server Error: %s' % self.data)
 
-        if self.response.error:
+        if self.response.status_code == (200 or 201):
             print >>sys.stderr, "-"*80
-            log.debug("msg:  %s"%self.response.error)
-            log.debug("data: %s"%self.data)
-            log.debug("raw:  %s"%raw_response)
+            log.debug("status:  %s" % self.response.status_code)
+            #log.debug("msg: %s" % self.data()['messages'][0]['text'])
+            # the raw_response is not available
+            #log.debug("raw:  %s"%raw_response)
             print >>sys.stderr, "-"*80
-        return (self.response.reason, self.data)
+        return (self.response.status_code, self.data)
+
 
 class Openshift(object):
     """
@@ -188,6 +197,7 @@ class Openshift(object):
     rest = None
     user = None
     passwd = None
+
     def __init__(self, host, user=None, passwd=None, debug=False, verbose=False, logger=None):
         if user:
             self.user = user
@@ -197,7 +207,7 @@ class Openshift(object):
             global log
             log = logger
         self.rest = RestApi(host=host, username=self.user, password=self.passwd, debug=debug, verbose=verbose)
-    
+
     def get_href(self, top_level_url, target_link, domain_name=None):
         status, res = self.rest.request(method='GET', url=top_level_url)
         index = target_link.upper()
@@ -206,15 +216,16 @@ class Openshift(object):
             raise OpenShiftLoginException('Authorization Required')
 
         if domain_name is None:
-            if self.rest.response.json['data']:
-                res = self.rest.response.json['data'][0]['links'][index]
+            if self.rest.response.json()['data']:
+                res = self.rest.response.json()['data'][0]['links'][index]
+
                 return (res['href'], res['method'])
             else:
                 raise OpenShiftNullDomainException("No domain has been initialized.")
                 #return ('Not Found', self.rest.response.json)
 
         else:  # domain name is specified, now find a match
-            json_data = self.rest.response.json['data']
+            json_data = self.rest.response.json()['data']
             if json_data:
                 for jd in json_data:
                     if jd['id'] == domain_name:
@@ -224,7 +235,7 @@ class Openshift(object):
                 return("Not Found", None)
             else:
                 return(None, None)
-        
+
     ##### /user  (sshkey)
     #@conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
@@ -233,10 +244,11 @@ class Openshift(object):
         (status, raw_response) = self.rest.request(method='GET', url='/user')
 
         if status == 'OK':
-            return (status, self.rest.response.json['data']['login'])
+            return (status, self.rest.response.json()['data']['login'])
         else:
             return (status, raw_response)
-    @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS) 
+
+    @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def keys_list(self):
         log.debug("Getting ssh key information...")
         (status, raw_response) = self.rest.request(method='GET', url='/user/keys')
@@ -258,24 +270,24 @@ class Openshift(object):
         if not kwargs.has_key('name'):
 
             kwargs['name'] = 'default'
-        
+
         if not kwargs.has_key('type'):
             kwargs['type'] = 'ssh-rsa'
-        
+
         data_dict = {
-                    'name': kwargs['name'],
-                    'type': kwargs['type'],
-                    'content': ssh_key_str
-                    }
+            'name': kwargs['name'],
+            'type': kwargs['type'],
+            'content': ssh_key_str
+        }
 
         params = data_dict
         status, raw_response = self.rest.request(method='POST', url='/user/keys', params=params)
         return (status, raw_response)
 
-
     ##### /domains
     #@conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
-    def domain_create(self, name, rhlogin='pruan@redhat.com'):
+    # TODO: should the rhlogin really be hardcoded in this function?
+    def domain_create(self, name, rhlogin='nate@appsembler.com'):
         log.debug("Creating domain '%s'" % name)
         params = {
             'id': name,
@@ -287,11 +299,10 @@ class Openshift(object):
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def domain_delete(self, domain_name=None, force=True):
-        """ destory a user's domain, if no name is given, figure it out"""
+        """ destroy a user's domain, if no name is given, figure it out"""
         if domain_name is None:
             status, res = self.domain_get()
             domain_name = status[1]
-
 
         url, method = self.get_href('/domains', 'delete', domain_name)
         log.info("URL: %s" % url)
@@ -299,8 +310,8 @@ class Openshift(object):
         if force:
             params = {'force': 'true'}
         if url:
-            return self.rest.request(method=method,  url=url, params=params)
-        else:  ## problem
+            return self.rest.request(method=method, url=url, params=params)
+        else:  # problem
             return (url, self.rest.response.raw)
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
@@ -313,7 +324,7 @@ class Openshift(object):
             (status, raw_response) = self.rest.request(method=method, url=url)
 
             if status == 'OK':
-                return (status, self.rest.response.json['data']['id'])
+                return (status, self.rest.response.json()['data']['id'])
 
     def domain_update(self, new_name):
         params = {'id': new_name}
@@ -324,26 +335,26 @@ class Openshift(object):
     def app_list(self):
         url, method = self.get_href('/domains', 'list_applications')
         (status, res) = self.rest.request(method=method, url=url)
-        return (status, self.rest.response.json['data'])
+        return (status, self.rest.response.json()['data'])
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def app_create(self, app_name, app_type, scale='false', init_git_url=None):
         url, method = self.get_href('/domains', 'add_application')
-        valid_options = self.rest.response.json['data'][0]['links']['ADD_APPLICATION']['optional_params'][0]['valid_options']
+        valid_options = self.rest.response.json()['data'][0]['links']['ADD_APPLICATION']['optional_params'][0]['valid_options']
         #if app_type not in valid_options:
         #    log.error("The app type you specified '%s' is not supported!" % app_type)
         #    log.debug("supported apps types are: %s" % valid_options)
-        
+
         try:
             json_data = json.loads(json.dumps(app_type))
         except:
             json_data = None
-        
+
         if json_data:
             # translate json data into list
             is_dict = all(isinstance(i, dict) for i in json_data)
-            cart_info =[] 
-            
+            cart_info = []
+
             if is_dict:
                 # need to construct a cart as a list from dictionary
                 for data in json_data:
@@ -354,13 +365,11 @@ class Openshift(object):
         else:
             cart_info.append(app_type)
 
-
         data_dict = {
-                'name' : app_name,
-                'cartridges[]' : cart_info,
-                'scale': scale,
-                }
-
+            'name': app_name,
+            'cartridges[]': cart_info,
+            'scale': scale,
+        }
 
         if init_git_url:
             data_dict['initial_git_url'] = init_git_url
@@ -375,7 +384,7 @@ class Openshift(object):
         (status, raw_response) = self.rest.request(method='GET', url='/cartridges')
         if status == 'OK':
             # return a list of cartridges that are supported
-            return (status, self.rest.response.json['data'])
+            return (status, self.rest.response.json()['data'])
         else:
             return (status, raw_response)
 
@@ -393,7 +402,7 @@ class Openshift(object):
         elif op == 'keys':
             status, res = self.keys_list()
 
-        json_data = self.rest.response.json
+        json_data = self.rest.response.json()
         action = kwargs['action']
         name = kwargs['name']
         raw_response = None
@@ -413,10 +422,10 @@ class Openshift(object):
                     data = data
                 else:
                     data = None
-                (status, raw_response) =  self.rest.request(method=params['method'], 
-                                                    url=params['href'],
-                                                    params=data)
-                return (status, self.rest.response.json)
+                (status, raw_response) = self.rest.request(method=params['method'],
+                                                           url=params['href'],
+                                                           params=data)
+                return (status, self.rest.response.json())
 
         return (status, raw_response)
 
@@ -425,7 +434,7 @@ class Openshift(object):
     def app_templates(self):
         (status, raw_response) = self.rest.request(method='GET', url='/application_template')
         if status == 'OK':
-            return (status, self.rest.response.json)
+            return (status, self.rest.response.json())
         else:
             return (status, raw_response)
 
@@ -439,8 +448,8 @@ class Openshift(object):
         params = {"action": 'DELETE', 'name': key_name, "op_type": 'keys'}
         return self.do_action(params)
 
-    @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)    
-    def key_update(self, kwargs): #key_name, key_path, key_type='ssh-rsa'):
+    @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
+    def key_update(self, kwargs):  # key_name, key_path, key_type='ssh-rsa'):
         """
         li.key_update({'name': 'new_key_name', 'key': new_key_path})
 
@@ -454,27 +463,26 @@ class Openshift(object):
         ssh_path = os.path.expanduser(key_path)
         ssh_key_str = open(ssh_path, 'r').read().split(' ')[1]
 
-        params = {'op_type':'keys', 'action': 'UPDATE', 'name': key_name, 'content': ssh_key_str, 'type': key_type}
+        params = {'op_type': 'keys', 'action': 'UPDATE', 'name': key_name, 'content': ssh_key_str, 'type': key_type}
         return self.do_action(params)
-    
+
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def key_get(self, name):
         """
         li.key_get('target_key_name')
         returns the actual key content :$
-        
         """
         params = {'action': 'GET', 'name': name, 'op_type': 'keys'}
         url = "/user/keys/" + name
         (status, raw_response) = self.rest.request(method='GET', url=url)
         if status == 'OK':
-            return status, self.rest.response.json['data']
+            return status, self.rest.response.json()['data']
         else:
             return (status, raw_response)
 
     def key_action(self, kwargs):
         status, res = self.keys_list()
-        json_data = self.rest.response.json
+        json_data = self.rest.response.json()
         action = kwargs['action']
         name = kwargs['name']
         for data in json_data['data']:
@@ -491,42 +499,41 @@ class Openshift(object):
                 else:
                     data = None
                 break
-        (status, raw_response) =  self.rest.request(method=params['method'], 
-                                                    url=params['href'], 
-                                                    params=data)
+        (status, raw_response) = self.rest.request(method=params['method'],
+                                                   url=params['href'],
+                                                   params=data)
         return (status, raw_response)
-
-
-
-
 
     ##### apps
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def app_create_scale(self, app_name, app_type, scale):
         self.app_create(app_name=app_name, app_type=app_type, scale=scale)
-        
+
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def app_delete(self, app_name):
         params = {'action': 'DELETE', 'app_name': app_name}
         return self.app_action(params)
-    
+
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
-    def app_start(self, app_name):    
+    def app_start(self, app_name):
         params = {"action": 'START', 'app_name': app_name}
         return self.app_action(params)
-    
+
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def app_stop(self, app_name):
         params = {"action": 'STOP', 'app_name': app_name}
         return self.app_action(params)
+
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def app_restart(self, app_name):
         params = {"action": 'RESTART', 'app_name': app_name}
         return self.app_action(params)
+
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def app_force_stop(self, app_name):
         params = {"action": 'FORCE_STOP', 'app_name': app_name}
         return self.app_action(params)
+
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def app_get_descriptor(self, app_name):
         params = {'action': 'GET', 'app_name': app_name}
@@ -542,11 +549,11 @@ class Openshift(object):
     def app_scale_down(self, app_name):
         params = {'action': 'SCALE_DOWN', 'app_name': app_name}
         return self.app_action(params)
-    
+
     def app_add_alias(self, app_name, alias):
         params = {'action': 'ADD_ALIAS', 'app_name': app_name, 'alias': alias}
         return self.app_action(params)
-  
+
     def app_remove_alias(self, app_name, alias):
         params = {'action': 'REMOVE_ALIAS', 'app_name': app_name, 'alias': alias}
         return self.app_action(params)
@@ -554,11 +561,11 @@ class Openshift(object):
     def app_get_estimates(self):
         url, method = self.get_href('/estimates', 'get_estimate')
         (status, res) = self.rest.request(method=method, url=url)
-        return (status, self.rest.response.json['data'])
+        return (status, self.rest.response.json()['data'])
 
         #params = {'action': 'GET_ESTIMATE'}
         #return self.app_action(params)
-        
+
     def app_action(self, params):
         """ generic helper function that is capable of doing all the operations
         for application
@@ -587,33 +594,33 @@ class Openshift(object):
                     rp = params_dict['required_params'][0]
                     #data[param_name] = cart_name #'name'] = rp['name']
                     for rp in params_dict['required_params']:
-                        # construct the data 
+                        # construct the data
                         param_name = rp['name']
                         if param_name == 'event':
-                            if isinstance(rp['valid_options'],list):
-                                data[param_name] = rp['valid_options'][0] 
+                            if isinstance(rp['valid_options'], list):
+                                data[param_name] = rp['valid_options'][0]
                             else:
-                                data[param_name] = rp['valid_options'] 
+                                data[param_name] = rp['valid_options']
                         else:
-                            data[param_name] = params[param_name] #cart_name #params['op_type']
+                            data[param_name] = params[param_name]  # cart_name #params['op_type']
                             #data[param_name] = params[param_name]
                     data = data
                 else:
                     data = None
                 req_url = params_dict['href']
-                (status, raw_response) =  self.rest.request(method=method, url=req_url, params=data)
+                (status, raw_response) = self.rest.request(method=method, url=req_url, params=data)
                 app_found = True
                 return (status, raw_response)
         if not app_found:
-            log.error("Can not find app matching your request '%s'"% app_name)
+            log.error("Can not find app matching your request '%s'" % app_name)
             return ("Error", None)
 
     def get_gears(self, app_name, domain_name=None):
         """ return gears information """
         params = {"action": 'GET_GEARS', 'app_name': app_name}
-        status, res =  self.app_action(params)
-        gear_counts = len(self.rest.response.json['data'])
-        return (self.rest.response.json['data'], gear_counts) 
+        status, res = self.app_action(params)
+        gear_counts = len(self.rest.response.json()['data'])
+        return (self.rest.response.json()['data'], gear_counts)
 
     ################################
     # cartridges
@@ -626,56 +633,56 @@ class Openshift(object):
         params = {"action": 'ADD_CARTRIDGE', 'app_name': app_name,
             'cartridge': cartridge}
         status, res = self.app_action(params)
-        return (status, self.rest.response.json['messages'])
-    
+        return (status, self.rest.response.json()['messages'])
+
     def cartridge_delete(self, app_name, name):
         params = {"action": 'DELETE', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
-    
+
     def cartridge_start(self, app_name, name):
         params = {"action": 'START', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
-    
+
     def cartridge_stop(self, app_name, name):
         params = {"action": 'STOP', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
-     
+
     def cartridge_restart(self, app_name, name):
         params = {"action": 'RESTART', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
-    
+
     def cartridge_reload(self, app_name, name):
         params = {"action": 'RELOAD', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
- 
+
     def cartridge_get(self, app_name, name):
         params = {"action": 'GET', 'name': name, "op_type": 'cartridge', 'app_name': app_name}
         return self.do_action(params)
 
-
     def app_template_get(self):
-        """ returnn a list of application template from an app """
+        """ return a list of application template from an app """
         status, res = self.rest.request(method='GET', url='/application_template')
         if status == 'OK':
-            return (status, self.rest.response.json['data'])
+            return (status, self.rest.response.json()['data'])
         else:
             return (status, res)
-        
+
 
 def sortedDict(adict):
     keys = adict.keys()
     keys.sort()
     return map(adict.get, keys)
 
+
 def perf_test(li):
     cart_types = ['php-5.3']
-    od = {  
+    od = {
         1: {'name': 'app_create', 'params': {'app_name': 'perftest'}},
         #2: {'name': 'app_delete', 'params': {'app_name': 'perftest'}},
-        }
+    }
     sod = sortedDict(od)
     #li.domain_create('blahblah')
-    cart_types = ['php-5.3']#'php-5.3', 'ruby-1.8', 'jbossas-7']
+    cart_types = ['php-5.3']  # 'php-5.3', 'ruby-1.8', 'jbossas-7']
     for cart in cart_types:
         for action in sod:
             method_call = getattr(li, action['name'])
@@ -693,4 +700,4 @@ if __name__ == '__main__':
     status, res = li.app_create(app_name="app1", app_type=["ruby-1.8", "mysql-5.1"], init_git_url="https://github.com/openshift/wordpress-example")
     status, res = li.app_create(app_name="app2", app_type="php-5.3", init_git_url="https://github.com/openshift/wordpress-example")
     status, res = li.app_create(app_name="app3", app_type=[{"name": "ruby-1.8"}, {"name": "mysql-5.1"}], init_git_url="https://github.com/openshift/wordpress-example")
- 
+
