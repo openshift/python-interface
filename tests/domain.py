@@ -11,7 +11,7 @@ from oshift import *
 
 class TestUser(unittest.TestCase):
     """
-    Test domain get REST API, under /broker/rest/dodmains
+    Test domain get REST API, under /broker/rest/domains
     The available actions are:
         UPDATE, DELETE, LIST_APPLICATIONS, GET, ADD_APPLICATION, 
     """
@@ -29,8 +29,8 @@ class TestUser(unittest.TestCase):
                 passwd=os.getenv('OPENSHIFT_PASSWD'))
 
         status, res = li.domain_create('invalid domain name')
-        expected = "Invalid namespace: 'invalid domain name'. Namespace must only contain alphanumeric characters."
-        error_msg = res.json['messages'][0]['text']
+        expected = "Invalid namespace. Namespace must only contain alphanumeric characters."
+        error_msg = res()['messages'][0]['text']
         self.assertEqual(error_msg, expected)
 
     def test_domain_create(self):
@@ -57,8 +57,8 @@ class TestUser(unittest.TestCase):
         li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
             passwd=os.getenv('OPENSHIFT_PASSWD'))
         status, res = li.domain_delete(self.valid_domain_name, force=True)
-
-        self.assertEqual(status, 'No Content')
+        expected_status = 204
+        self.assertEqual(status, expected_status)
 
 if __name__ == '__main__':
     """

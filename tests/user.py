@@ -15,18 +15,19 @@ class TestUser(unittest.TestCase):
     """
     def test_invalid_username(self):
         li = Openshift(host=os.getenv('OPENSHIFT_IP'), user='pppppp',
-            passwd=os.getenv('OPENSHIFT_PASSWD'))
-        li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
-                passwd="notvalid")
+                       passwd=os.getenv('OPENSHIFT_PASSWD'))
 
         status, res = li.get_user()
-        self.assertEqual(status, 'Authorization Required')
+        expected_status = 401
+        self.assertEqual(status, expected_status)
 
     def test_invalid_password(self):
         li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
-                passwd="notvalid")
+                       passwd="notvalid")
+
         status, res = li.get_user()
-        self.assertEqual(status, 'Authorization Required')
+        expected_status = 401
+        self.assertEqual(status, expected_status)
 
 
     def test_user(self):
@@ -39,7 +40,8 @@ class TestUser(unittest.TestCase):
         li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
             passwd=os.getenv('OPENSHIFT_PASSWD'))
         status, res = li.get_user()
-        self.assertEqual(status, 'OK')
+        expected_status = 200
+        self.assertEqual(status, expected_status)
 
     def test_add_key(self):
         key_str = "aaabbbcccdddeeefffggghhhiiijjjkkklllmmmnnnooopppqqqrrrssstttuuuvvvwwwxxxyyyzzz"

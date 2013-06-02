@@ -27,7 +27,11 @@ class TestUser(unittest.TestCase):
         li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'),
             passwd=os.getenv('OPENSHIFT_PASSWD'))
         self.li = li
-        li.domain_create(self.domain_name)
+        status, res = li.domain_create(self.domain_name)
+        
+        if status != 201:
+            msg = res()['messages'][0]['text']
+            raise OpenShiftNullDomainException("Unable to create domain: %s" % msg)
 
     def test_app_create_delete(self):
         status, res = self.li.app_create(app_name=self.app_name, app_type="php-5.3")
@@ -40,7 +44,7 @@ class TestUser(unittest.TestCase):
     
     def tearDown(self):
         print "####################"
-        self.li.domain_delete(self.domain_name)
+        status, res = self.li.domain_delete(self.domain_name)
 
     """
     @classmethod
