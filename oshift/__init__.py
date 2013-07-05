@@ -27,6 +27,9 @@ class OpenShiftLoginException(OpenShiftException):
     """Authorization failed."""
     pass
 
+class OpenShiftAppException(OpenShiftException):
+    """App not found."""
+    pass
 
 class OpenShiftNullDomainException(OpenShiftException):
     """User's domain hasn't been initialized."""
@@ -612,8 +615,9 @@ class Openshift(object):
                 app_found = True
                 return (status, raw_response)
         if not app_found:
-            log.error("Can not find app matching your request '%s'" % app_name)
-            return ("Error", None)
+            raise OpenShiftAppException("Can not find the app matching your request")
+            #log.error("Can not find app matching your request '%s'" % app_name)
+            #return ("Error", None)
 
     def get_gears(self, app_name, domain_name=None):
         """ return gears information """
