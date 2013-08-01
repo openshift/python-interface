@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 
 """
 This is a python interface for using Openshift-2.0 REST 
@@ -171,9 +172,9 @@ class RestApi(object):
         try:
             raw_response = self.response.raw
         except Exception as e:
-            print >>sys.stderr, "-"*80
+            print("-"*80, file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
-            print >>sys.stderr, "-"*80
+            print("-"*80, file=sys.stderr)
             raise e
 
         self.data = self.response.json
@@ -183,12 +184,12 @@ class RestApi(object):
             raise OpenShift500Exception('Internal Server Error: %s' % self.data)
 
         if self.response.status_code == (200 or 201):
-            print >>sys.stderr, "-"*80
+            print("-"*80, file=sys.stderr)
             log.debug("status:  %s" % self.response.status_code)
             #log.debug("msg: %s" % self.data()['messages'][0]['text'])
             # the raw_response is not available
             #log.debug("raw:  %s"%raw_response)
-            print >>sys.stderr, "-"*80
+            print("-"*80, file=sys.stderr)
         return (self.response.status_code, self.data)
 
 
