@@ -9,7 +9,6 @@ version = 2.0  changed the basic support to use the new requests module
 
 import os
 import sys
-import exceptions
 import logging
 from optparse import OptionParser
 import time
@@ -19,7 +18,7 @@ import json
 import requests
 
 
-class OpenShiftException(exceptions.BaseException):
+class OpenShiftException(BaseException):
     pass
 
 
