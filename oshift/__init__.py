@@ -673,7 +673,7 @@ class Openshift(object):
 
 
 def sortedDict(adict):
-    keys = adict.keys()
+    keys = list(adict.keys())
     keys.sort()
     return map(adict.get, keys)
 
@@ -690,7 +690,7 @@ def perf_test(li):
     for cart in cart_types:
         for action in sod:
             method_call = getattr(li, action['name'])
-            k, v = action['params'].items()[0]
+            k, v = list(action['params'].items()[0])
             if action['name'] == 'app_create':
                 method_call(v, cart)
             else:
