@@ -262,7 +262,7 @@ class Openshift(object):
         """
         params: {name, type, key_path}
         """
-        if not kwargs.has_key('key'):
+        if 'key' not in kwargs:
             # use a default path
             sshkey = '~/.ssh/id_rsa.pub'
         else:
@@ -270,11 +270,11 @@ class Openshift(object):
         ssh_path = os.path.expanduser(sshkey)
         ssh_key_str = open(ssh_path, 'r').read().split(' ')[1]
 
-        if not kwargs.has_key('name'):
+        if 'name' not in kwargs:
 
             kwargs['name'] = 'default'
 
-        if not kwargs.has_key('type'):
+        if 'type' not in kwargs:
             kwargs['type'] = 'ssh-rsa'
 
         data_dict = {
@@ -459,7 +459,7 @@ class Openshift(object):
         """
         key_path = kwargs['key']
         key_name = kwargs['name']
-        if kwargs.has_key('key_type'):
+        if 'key_type' in kwargs:
             key_type = kwargs['key_type']
         else:
             key_type = 'ssh-rsa'
@@ -578,9 +578,9 @@ class Openshift(object):
 
         app_found = False
         action = params['action']
-        if params.has_key('app_name'):
+        if 'app_name' in params:
             app_name = params['app_name']
-        if params.has_key('cartridge'):
+        if 'cartridge' in params:
             cart_name = params['cartridge']
 
         for app in res:
