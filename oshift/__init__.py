@@ -16,6 +16,7 @@ import time
 import traceback
 import json
 
+import base64
 import requests
 
 
@@ -67,7 +68,6 @@ def config_parser():
     parser.set_defaults(VERBOSE=False)
     parser.set_defaults(DEBUG=False)
     parser.add_option("-d", action="store_true", dest="DEBUG", help="enable DEBUG (default true)")
-    #parser.add_option("-a", "--action", help="action you want to take (list|create|store)")
     parser.add_option("-i", "--ip", default="openshift.redhat.com", help="ip addaress of your devenv")
     parser.add_option("-v", action="store_true", dest="VERBOSE", help="enable VERBOSE printing")
     parser.add_option("-u", "--user", default=None, help="User name")
@@ -142,6 +142,7 @@ class RestApi(object):
 
         self.debug = debug
         self.base_uri = "https://" + host + "/broker/rest"
+        
 
     def _get_auth_headers(self, username=None, password=None):
         if username:
@@ -162,12 +163,20 @@ class RestApi(object):
             self.url = self.base_uri + url
         log.debug("URL: %s" % self.url)
         auth = (self.username, self.password)  # self._get_auth_headers()
+        #auth = self._get_auth_headers()
+        if 'OPENSHIFT_REST_API' in os.environ:
+            user_specified_api_version = os.environ['OPENSHIFT_REST_API']
+            api_version = "application/json;version=%s" % user_specified_api_version
+
+            headers = {'Accept': api_version}
+        else:
+            headers = None
 
         if method:
             method = method.lower()
         method_call = getattr(requests, method)
         self.response = method_call(
-            url=self.url, auth=auth, params=params,
+            url=self.url, auth=auth, params=params, headers=headers,
             timeout=130, verify=False)
         try:
             raw_response = self.response.raw
@@ -177,8 +186,7 @@ class RestApi(object):
             print >>sys.stderr, "-"*80
             raise e
 
-        self.data = self.response.json
-
+        self.data = self.response.json()
         # see https://github.com/kennethreitz/requests/blob/master/requests/status_codes.py
         if self.response.status_code == requests.codes.internal_server_error:
             raise OpenShift500Exception('Internal Server Error: %s' % self.data)
@@ -210,6 +218,12 @@ class Openshift(object):
             global log
             log = logger
         self.rest = RestApi(host=host, username=self.user, password=self.passwd, debug=debug, verbose=verbose)
+        if 'OPENSHIFT_REST_API' in os.environ:
+            self.REST_API_VERSION = float(os.environ['OPENSHIFT_REST_API'])
+        else:
+            # just get the latest version returned from the Server
+            api_version, api_version_list = self.api_version()
+            self.REST_API_VERSION = api_version
 
     def get_href(self, top_level_url, target_link, domain_name=None):
         status, res = self.rest.request(method='GET', url=top_level_url)
@@ -325,9 +339,12 @@ class Openshift(object):
             return ('Not Found', None)
         else:
             (status, raw_response) = self.rest.request(method=method, url=url)
-
-            if status == 'OK':
-                return (status, self.rest.response.json()['data']['id'])
+            if status == 200:
+                if self.REST_API_VERSION < 1.6:
+                    domain_index_name = 'id'
+                else:
+                    domain_index_name = 'name'
+                return (status, self.rest.response.json()['data'][domain_index_name])
 
     def domain_update(self, new_name):
         params = {'id': new_name}
@@ -396,6 +413,11 @@ class Openshift(object):
         #log.debug("Getting supported APIs...")
         (status, raw_response) = self.rest.request(method='GET', url='/api')
         return (status, raw_response)
+
+    def api_version(self):
+        # return the current version being used and the list of supported versions
+        status, res = self.api()
+        return (float(res['version']), res['supported_api_versions'])
 
     ##### helper functions
     def do_action(self, kwargs):
@@ -701,7 +723,9 @@ if __name__ == '__main__':
     (options, args) = config_parser()
     li = Openshift(host=options.ip, user=options.user, passwd=options.password,
         debug=options.DEBUG,verbose=options.VERBOSE)
-    status, res = li.app_create(app_name="app1", app_type=["ruby-1.8", "mysql-5.1"], init_git_url="https://github.com/openshift/wordpress-example")
-    status, res = li.app_create(app_name="app2", app_type="php-5.3", init_git_url="https://github.com/openshift/wordpress-example")
-    status, res = li.app_create(app_name="app3", app_type=[{"name": "ruby-1.8"}, {"name": "mysql-5.1"}], init_git_url="https://github.com/openshift/wordpress-example")
+    status, res = li.domain_get()
+    self.info('xxx', 1)
+    #status, res = li.app_create(app_name="app1", app_type=["ruby-1.8", "mysql-5.1"], init_git_url="https://github.com/openshift/wordpress-example")
+    #status, res = li.app_create(app_name="app2", app_type="php-5.3", init_git_url="https://github.com/openshift/wordpress-example")
+    #status, res = li.app_create(app_name="app3", app_type=[{"name": "ruby-1.8"}, {"name": "mysql-5.1"}], init_git_url="https://github.com/openshift/wordpress-example")
 
