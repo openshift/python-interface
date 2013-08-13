@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 
 """
 This is a python interface for using Openshift-2.0 REST 
@@ -9,7 +10,6 @@ version = 2.0  changed the basic support to use the new requests module
 
 import os
 import sys
-import exceptions
 import logging
 from optparse import OptionParser
 import time
@@ -20,7 +20,7 @@ import base64
 import requests
 
 
-class OpenShiftException(exceptions.BaseException):
+class OpenShiftException(BaseException):
     pass
 
 
@@ -181,9 +181,9 @@ class RestApi(object):
         try:
             raw_response = self.response.raw
         except Exception as e:
-            print >>sys.stderr, "-"*80
+            print("-"*80, file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
-            print >>sys.stderr, "-"*80
+            print("-"*80, file=sys.stderr)
             raise e
 
         self.data = self.response.json()
@@ -192,12 +192,12 @@ class RestApi(object):
             raise OpenShift500Exception('Internal Server Error: %s' % self.data)
 
         if self.response.status_code == (200 or 201):
-            print >>sys.stderr, "-"*80
+            print("-"*80, file=sys.stderr)
             log.debug("status:  %s" % self.response.status_code)
             #log.debug("msg: %s" % self.data()['messages'][0]['text'])
             # the raw_response is not available
             #log.debug("raw:  %s"%raw_response)
-            print >>sys.stderr, "-"*80
+            print("-"*80, file=sys.stderr)
         return (self.response.status_code, self.data)
 
 
@@ -276,7 +276,7 @@ class Openshift(object):
         """
         params: {name, type, key_path}
         """
-        if not kwargs.has_key('key'):
+        if 'key' not in kwargs:
             # use a default path
             sshkey = '~/.ssh/id_rsa.pub'
         else:
@@ -284,11 +284,11 @@ class Openshift(object):
         ssh_path = os.path.expanduser(sshkey)
         ssh_key_str = open(ssh_path, 'r').read().split(' ')[1]
 
-        if not kwargs.has_key('name'):
+        if 'name' not in kwargs:
 
             kwargs['name'] = 'default'
 
-        if not kwargs.has_key('type'):
+        if 'type' not in kwargs:
             kwargs['type'] = 'ssh-rsa'
 
         data_dict = {
@@ -481,7 +481,7 @@ class Openshift(object):
         """
         key_path = kwargs['key']
         key_name = kwargs['name']
-        if kwargs.has_key('key_type'):
+        if 'key_type' in kwargs:
             key_type = kwargs['key_type']
         else:
             key_type = 'ssh-rsa'
@@ -600,9 +600,9 @@ class Openshift(object):
 
         app_found = False
         action = params['action']
-        if params.has_key('app_name'):
+        if 'app_name' in params:
             app_name = params['app_name']
-        if params.has_key('cartridge'):
+        if 'cartridge' in params:
             cart_name = params['cartridge']
 
         for app in res:
@@ -695,7 +695,7 @@ class Openshift(object):
 
 
 def sortedDict(adict):
-    keys = adict.keys()
+    keys = list(adict.keys())
     keys.sort()
     return map(adict.get, keys)
 
@@ -712,7 +712,7 @@ def perf_test(li):
     for cart in cart_types:
         for action in sod:
             method_call = getattr(li, action['name'])
-            k, v = action['params'].items()[0]
+            k, v = list(action['params'].items()[0])
             if action['name'] == 'app_create':
                 method_call(v, cart)
             else:
