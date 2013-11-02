@@ -116,6 +116,7 @@ class RestApi(object):
     A base connection class to derive from.
     """
 
+    proto = 'https'
     host = '127.0.0.1'
     port = 443
     username = None
@@ -127,7 +128,10 @@ class RestApi(object):
     debug = False
 
     def __init__(self, host=None, port=443, username=username, password=password,
-                 debug=False, verbose=False):
+                 debug=False, verbose=False, proto=None):
+        if proto is not None:
+            self.proto = proto
+
         if host is not None:
             self.host = host
 
@@ -141,7 +145,7 @@ class RestApi(object):
             self.verbose = verbose
 
         self.debug = debug
-        self.base_uri = "https://" + host + "/broker/rest"
+        self.base_uri = self.proto + "://" + host + "/broker/rest"
         
 
     def _get_auth_headers(self, username=None, password=None):
@@ -157,7 +161,7 @@ class RestApi(object):
         """
         wrapper method for Requests' methods
         """
-        if url.startswith("https://"):
+        if url.startswith("https://") or url.startswith("http://"):
             self.url = url  # self.base_uri + url
         else:
             self.url = self.base_uri + url
@@ -209,7 +213,7 @@ class Openshift(object):
     user = None
     passwd = None
 
-    def __init__(self, host, user=None, passwd=None, debug=False, verbose=False, logger=None):
+    def __init__(self, host, user=None, passwd=None, debug=False, verbose=False, logger=None, proto=None):
         if user:
             self.user = user
         if passwd:
@@ -217,7 +221,7 @@ class Openshift(object):
         if logger:
             global log
             log = logger
-        self.rest = RestApi(host=host, username=self.user, password=self.passwd, debug=debug, verbose=verbose)
+        self.rest = RestApi(host=host, username=self.user, password=self.passwd, debug=debug, verbose=verbose, proto=proto)
         if 'OPENSHIFT_REST_API' in os.environ:
             self.REST_API_VERSION = float(os.environ['OPENSHIFT_REST_API'])
         else:
