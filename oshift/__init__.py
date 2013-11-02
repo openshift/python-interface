@@ -179,9 +179,14 @@ class RestApi(object):
         if method:
             method = method.lower()
         method_call = getattr(requests, method)
-        self.response = method_call(
-            url=self.url, auth=auth, params=params, headers=headers,
-            timeout=130, verify=False)
+        if auth[0] is None and auth[1] is None:
+            self.response = method_call(
+                url=self.url, params=params, headers=headers,
+                timeout=130, verify=False)
+       else:
+            self.response = method_call(
+                url=self.url, auth=auth, params=params, headers=headers,
+                timeout=130, verify=False)
         try:
             raw_response = self.response.raw
         except Exception as e:
