@@ -128,7 +128,7 @@ class RestApi(object):
     debug = False
 
     def __init__(self, host=None, port=443, username=username, password=password,
-                 debug=False, verbose=False, proto=None):
+                 debug=False, verbose=False, proto=None, headers=None):
         if proto is not None:
             self.proto = proto
 
@@ -140,6 +140,9 @@ class RestApi(object):
 
         if password:
             self.password = password
+
+        if headers:
+            self.headers = headers
 
         if verbose:
             self.verbose = verbose
@@ -168,24 +171,25 @@ class RestApi(object):
         log.debug("URL: %s" % self.url)
         auth = (self.username, self.password)  # self._get_auth_headers()
         #auth = self._get_auth_headers()
+        _headers = self.headers or {}
+        if headers:
+            _headers.update(headers)
         if 'OPENSHIFT_REST_API' in os.environ:
             user_specified_api_version = os.environ['OPENSHIFT_REST_API']
             api_version = "application/json;version=%s" % user_specified_api_version
 
-            headers = {'Accept': api_version}
-        else:
-            headers = None
+            _headers['Accept'] = api_version
 
         if method:
             method = method.lower()
         method_call = getattr(requests, method)
         if auth[0] is None and auth[1] is None:
             self.response = method_call(
-                url=self.url, params=params, headers=headers,
+                url=self.url, params=params, headers=_headers,
                 timeout=130, verify=False)
-       else:
+        else:
             self.response = method_call(
-                url=self.url, auth=auth, params=params, headers=headers,
+                url=self.url, auth=auth, params=params, headers=_headers,
                 timeout=130, verify=False)
         try:
             raw_response = self.response.raw
@@ -218,7 +222,7 @@ class Openshift(object):
     user = None
     passwd = None
 
-    def __init__(self, host, user=None, passwd=None, debug=False, verbose=False, logger=None, proto=None):
+    def __init__(self, host, user=None, passwd=None, debug=False, verbose=False, logger=None, proto=None, headers=None):
         if user:
             self.user = user
         if passwd:
@@ -226,7 +230,7 @@ class Openshift(object):
         if logger:
             global log
             log = logger
-        self.rest = RestApi(host=host, username=self.user, password=self.passwd, debug=debug, verbose=verbose, proto=proto)
+        self.rest = RestApi(host=host, username=self.user, password=self.passwd, debug=debug, verbose=verbose, proto=proto, headers=headers)
         if 'OPENSHIFT_REST_API' in os.environ:
             self.REST_API_VERSION = float(os.environ['OPENSHIFT_REST_API'])
         else:
