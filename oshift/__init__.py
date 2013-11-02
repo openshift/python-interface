@@ -656,7 +656,7 @@ class Openshift(object):
 
     def get_gears(self, app_name, domain_name=None):
         """ return gears information """
-        params = {"action": 'GET_GEARS', 'app_name': app_name}
+        params = {"action": 'GET_GEAR_GROUPS', 'app_name': app_name}
         status, res = self.app_action(params)
         gear_counts = len(self.rest.response.json()['data'])
         return (self.rest.response.json()['data'], gear_counts)
