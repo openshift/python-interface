@@ -258,7 +258,7 @@ class Openshift(object):
             json_data = self.rest.response.json()['data']
             if json_data:
                 for jd in json_data:
-                    if jd['id'] == domain_name:
+                    if jd['name'] == domain_name:
                         res = jd['links'][index]
                         return (res['href'], res['method'])
                 ### if here, then user has given a domain name that does not match what's registered with the system
@@ -331,8 +331,7 @@ class Openshift(object):
     def domain_delete(self, domain_name=None, force=True):
         """ destroy a user's domain, if no name is given, figure it out"""
         if domain_name is None:
-            status, res = self.domain_get()
-            domain_name = status[1]
+            status, domain_name = self.domain_get()
 
         url, method = self.get_href('/domains', 'delete', domain_name)
         log.info("URL: %s" % url)
