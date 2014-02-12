@@ -2,7 +2,7 @@
 from __future__ import print_function
 
 """
-This is a python interface for using Openshift-2.0 REST 
+This is a python interface for using Openshift-2.0 REST
 version = 2.0  changed the basic support to use the new requests module
  (http://docs.python-requests.org/en/latest/index.html)
 
@@ -149,7 +149,7 @@ class RestApi(object):
 
         self.debug = debug
         self.base_uri = self.proto + "://" + host + "/broker/rest"
-        
+
 
     def _get_auth_headers(self, username=None, password=None):
         if username:
@@ -543,8 +543,8 @@ class Openshift(object):
 
     ##### apps
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
-    def app_create_scale(self, app_name, app_type, scale):
-        self.app_create(app_name=app_name, app_type=app_type, scale=scale)
+    def app_create_scale(self, app_name, app_type, scale, init_git_url=None):
+        self.app_create(app_name=app_name, app_type=app_type, scale=scale, init_git_url=init_git_url)
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def app_delete(self, app_name):
