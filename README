@@ -1,10 +1,10 @@
 README
 ==============================================================================
 
-This is a python interface for the new Openshift REST API.  Check the file
+This is a python interface for the Openshift REST API.  Check 
 oshift/__init__.py for the class file.
 
 [2012-11-19]
-Use python requests module instead of httplib for a more clean interface.  
+Use python requests module instead of httplib for a cleaner interface.  
 Known issue is https over proxy does not work as indicated by
 https://github.com/kennethreitz/requests/issues/905
