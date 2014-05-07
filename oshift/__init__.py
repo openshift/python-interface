@@ -180,17 +180,12 @@ class RestApi(object):
 
             _headers['Accept'] = api_version
 
-        if method:
-            method = method.lower()
-        method_call = getattr(requests, method)
-        if auth[0] is None and auth[1] is None:
-            self.response = method_call(
-                url=self.url, params=params, headers=_headers,
-                timeout=130, verify=False)
-        else:
-            self.response = method_call(
-                url=self.url, auth=auth, params=params, headers=_headers,
-                timeout=130, verify=False)
+        self.response = requests.request(
+            auth=None if None in auth else auth,
+            method=method, url=self.url, params=params,
+            headers=_headers, timeout=130, verify=False
+        )
+
         try:
             raw_response = self.response.raw
         except Exception as e:
