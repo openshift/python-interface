@@ -388,14 +388,18 @@ class Openshift(object):
                 domains.append((status, self.rest.response.json()['data'][domain_index_name]))
         return domains
 
-    def domain_update(self, new_name):
+    def domain_update(self, new_name, old_name=None):
         params = {'id': new_name}
-        url, method = self.get_href("/domains", 'update')
+        url, method = self.get_href("/domains", 'update', domain_name=old_name)
+        if url == 'Not Found':
+            return ('Not Found', None)
         (status, res) = self.rest.request(method=method, url=url, params=params)
         return (status, res)
 
-    def app_list(self):
-        url, method = self.get_href('/domains', 'list_applications')
+    def app_list(self, domain_name=None):
+        url, method = self.get_href('/domains', 'list_applications', domain_name=domain_name)
+        if url == 'Not Found':
+            return ('Not Found', None)
         (status, res) = self.rest.request(method=method, url=url)
         return (status, self.rest.response.json()['data'])
 
@@ -415,8 +419,10 @@ class Openshift(object):
         return results
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
-    def app_create(self, app_name, app_type, scale='false', init_git_url=None):
-        url, method = self.get_href('/domains', 'add_application')
+    def app_create(self, app_name, app_type, scale='false', init_git_url=None, domain_name=None):
+        url, method = self.get_href('/domains', 'add_application', domain_name=domain_name)
+        if url == 'Not Found':
+            return ('Not Found', None)
         valid_options = self.rest.response.json()['data'][0]['links']['ADD_APPLICATION']['optional_params'][0]['valid_options']
         #if app_type not in valid_options:
         #    log.error("The app type you specified '%s' is not supported!" % app_type)
@@ -592,75 +598,64 @@ class Openshift(object):
         self.app_create(app_name=app_name, app_type=app_type, scale=scale, init_git_url=init_git_url)
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
-    def app_delete(self, app_name):
-        params = {'action': 'DELETE', 'app_name': app_name}
-        return self.app_action(params)
+    def app_delete(self, app_name, domain_name=None):
+        return self.app_action('DELETE', app_name, domain_name=domain_name)
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
-    def app_start(self, app_name):
-        params = {"action": 'START', 'app_name': app_name}
-        return self.app_action(params)
+    def app_start(self, app_name, domain_name=None):
+        return self.app_action('START', app_name, domain_name=domain_name)
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
-    def app_stop(self, app_name):
-        params = {"action": 'STOP', 'app_name': app_name}
-        return self.app_action(params)
+    def app_stop(self, app_name, domain_name=None):
+        return self.app_action('STOP', app_name, domain_name=domain_name)
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
-    def app_restart(self, app_name):
-        params = {"action": 'RESTART', 'app_name': app_name}
-        return self.app_action(params)
+    def app_restart(self, app_name, domain_name=None):
+        return self.app_action('RESTART', app_name, domain_name=domain_name)
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
-    def app_force_stop(self, app_name):
-        params = {"action": 'FORCE_STOP', 'app_name': app_name}
-        return self.app_action(params)
+    def app_force_stop(self, app_name, domain_name=None):
+        return self.app_action('FORCE_STOP', app_name, domain_name=domain_name)
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
-    def app_get_descriptor(self, app_name):
-        params = {'action': 'GET', 'app_name': app_name}
-        return self.app_action(params)
+    def app_get_descriptor(self, app_name, domain_name=None):
+        return self.app_action('GET', app_name, domain_name=domain_name)
 
     #############################################################
     # event related functions
     #############################################################
-    def app_scale_up(self, app_name):
-        params = {'action': 'SCALE_UP', 'app_name': app_name}
-        return self.app_action(params)
+    def app_scale_up(self, app_name, domain_name=None):
+        return self.app_action('SCALE_UP', app_name, domain_name=domain_name)
 
-    def app_scale_down(self, app_name):
-        params = {'action': 'SCALE_DOWN', 'app_name': app_name}
-        return self.app_action(params)
+    def app_scale_down(self, app_name, domain_name=None):
+        return self.app_action('SCALE_DOWN', app_name, domain_name=domain_name)
 
-    def app_add_alias(self, app_name, alias):
-        params = {'action': 'ADD_ALIAS', 'app_name': app_name, 'alias': alias}
-        return self.app_action(params)
+    def app_add_alias(self, app_name, alias, domain_name=None):
+        return self.app_action('ADD_ALIAS', app_name, alias=alias, domain_name=domain_name)
 
-    def app_remove_alias(self, app_name, alias):
-        params = {'action': 'REMOVE_ALIAS', 'app_name': app_name, 'alias': alias}
-        return self.app_action(params)
+    def app_remove_alias(self, app_name, alias, domain_name=None):
+        return self.app_action('REMOVE_ALIAS', app_name, alias=alias, domain_name=domain_name)
 
     def app_get_estimates(self):
         url, method = self.get_href('/estimates', 'get_estimate')
+        if url == 'Not Found':
+            return ('Not Found', None)
         (status, res) = self.rest.request(method=method, url=url)
         return (status, self.rest.response.json()['data'])
 
         #params = {'action': 'GET_ESTIMATE'}
         #return self.app_action(params)
 
-    def app_action(self, params):
+    def app_action(self, action, app_name, domain_name=None, **params):
         """ generic helper function that is capable of doing all the operations
         for application
         """
-        # step1. find th url and method
-        status, res = self.app_list()
+        # step1. find url and method
+        status, res = self.app_list(domain_name)
 
+        action = action.upper()
         app_found = False
-        action = params['action']
-        if 'app_name' in params:
-            app_name = params['app_name']
-        if 'cartridge' in params:
-            cart_name = params['cartridge']
+        #cart_name = params.get('cartridge', None)
 
         for app in res:
         #for app in res['data']:
@@ -700,20 +695,16 @@ class Openshift(object):
 
     def get_gears(self, app_name, domain_name=None):
         """ return gears information """
-        params = {"action": 'GET_GEAR_GROUPS', 'app_name': app_name}
-        return self.app_action(params)
+        return self.app_action('GET_GEAR_GROUPS', app_name, domain_name=domain_name)
 
     ################################
     # cartridges
     ################################
-    def cartridge_list(self, app_name):
-        params = {"action": 'LIST_CARTRIDGES', 'app_name': app_name}
-        return self.app_action(params)
+    def cartridge_list(self, app_name, domain_name=None):
+        return self.app_action('LIST_CARTRIDGES', app_name, domain_name=domain_name)
 
-    def cartridge_add(self, app_name, cartridge):
-        params = {"action": 'ADD_CARTRIDGE', 'app_name': app_name,
-            'cartridge': cartridge}
-        status, res = self.app_action(params)
+    def cartridge_add(self, app_name, cartridge, domain_name=None):
+        status, res = self.app_action('ADD_CARTRIDGE', app_name, cartridge=cartridge, domain_name=domain_name)
         return (status, self.rest.response.json()['messages'])
 
     def cartridge_delete(self, app_name, name):
