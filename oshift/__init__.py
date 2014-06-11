@@ -399,6 +399,21 @@ class Openshift(object):
         (status, res) = self.rest.request(method=method, url=url)
         return (status, self.rest.response.json()['data'])
 
+    def app_list_all(self):
+        """List all user's apps over all user's domains.
+           Return format:
+           [
+             [status, [app, app, ...]],
+             [status, [app, app, ...]],
+             ...
+           ]
+        """
+        results = []
+        for url, method in self.yield_href('/domains', 'list_applications'):
+            (status, res) = self.rest.request(method=method, url=url)
+            results += (status, self.rest.response.json()['data'])
+        return results
+
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def app_create(self, app_name, app_type, scale='false', init_git_url=None):
         url, method = self.get_href('/domains', 'add_application')
