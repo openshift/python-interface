@@ -411,7 +411,7 @@ class Openshift(object):
         results = []
         for url, method in self.yield_href('/domains', 'list_applications'):
             (status, res) = self.rest.request(method=method, url=url)
-            results += (status, self.rest.response.json()['data'])
+            results.append((status, self.rest.response.json()['data']))
         return results
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
