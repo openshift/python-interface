@@ -261,6 +261,23 @@ class Openshift(object):
             else:
                 return(None, None)
 
+    def yield_href(self, top_level_url, target_link):
+        status, res = self.rest.request(method='GET', url=top_level_url)
+        index = target_link.upper()
+        if status == 'Authorization Required':
+            #log.error("Authorization failed. (Check your credentials)")
+            raise OpenShiftLoginException('Authorization Required')
+
+        data = self.rest.response.json()['data']
+        if data:
+            for entry in data:
+                res = entry['links'][index]
+
+                yield (res['href'], res['method'])
+        else:
+            raise OpenShiftNullDomainException("No domain has been initialized.")
+            #return ('Not Found', self.rest.response.json)
+
     ##### /user  (sshkey)
     #@conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
@@ -325,6 +342,7 @@ class Openshift(object):
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def domain_delete(self, domain_name=None, force=True):
         """ destroy a user's domain, if no name is given, figure it out"""
+        log.debug("Deleting domain '%s'" % domain_name)
         if domain_name is None:
             status, domain_name = self.domain_get()
 
@@ -337,6 +355,13 @@ class Openshift(object):
             return self.rest.request(method=method, url=url, params=params)
         else:  # problem
             return (url, self.rest.response.raw)
+
+    def domain_delete_all(self, force=True):
+        """ destroy all user's domains"""
+        results = []
+        for status, domain_name in self.domain_list():
+            results.append(self.domain_delete(domain_name, force=force))
+        return results
 
     @conditional_decorator(timeit, DOING_PERFORMANCE_ANALYSIS)
     def domain_get(self, name=None):
@@ -352,6 +377,16 @@ class Openshift(object):
                 else:
                     domain_index_name = 'name'
                 return (status, self.rest.response.json()['data'][domain_index_name])
+
+    def domain_list(self):
+        log.info("Listing domain information...")
+        domains = []
+        for url, method in self.yield_href('/domains', 'get'):
+            (status, raw_response) = self.rest.request(method=method, url=url)
+            if status == 200:
+                domain_index_name = 'id' if self.REST_API_VERSION < 1.6 else 'name'
+                domains.append((status, self.rest.response.json()['data'][domain_index_name]))
+        return domains
 
     def domain_update(self, new_name):
         params = {'id': new_name}
