@@ -69,7 +69,7 @@ def config_parser():
     parser.set_defaults(VERBOSE=False)
     parser.set_defaults(DEBUG=False)
     parser.add_option("-d", action="store_true", dest="DEBUG", help="enable DEBUG (default true)")
-    parser.add_option("-i", "--ip", default="openshift.redhat.com", help="ip addaress of your devenv")
+    parser.add_option("-i", "--ip", default="openshift.redhat.com", help="ip address of your devenv")
     parser.add_option("-v", action="store_true", dest="VERBOSE", help="enable VERBOSE printing")
     parser.add_option("-u", "--user", default=None, help="User name")
     parser.add_option("-p", "--password", default=None, help="RHT password")
