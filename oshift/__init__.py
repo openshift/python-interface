@@ -653,44 +653,26 @@ class Openshift(object):
         status, res = self.app_list(domain_name)
 
         action = action.upper()
-        app_found = False
-        #cart_name = params.get('cartridge', None)
 
-        for app in res:
-        #for app in res['data']:
-
-            if app['name'] == app_name:
-                # found match, now do your stuff
-                params_dict = app['links'][action]
-                method = params_dict['method']
-                log.info("Action: %s" % action)
-                data = {}
-                if len(params_dict['required_params']) > 0:
-                    param_name = params_dict['required_params'][0]['name']
-                    rp = params_dict['required_params'][0]
-                    #data[param_name] = cart_name #'name'] = rp['name']
-                    for rp in params_dict['required_params']:
-                        # construct the data
-                        param_name = rp['name']
-                        if param_name == 'event':
-                            if isinstance(rp['valid_options'], list):
-                                data[param_name] = rp['valid_options'][0]
-                            else:
-                                data[param_name] = rp['valid_options']
-                        else:
-                            data[param_name] = params[param_name]  # cart_name #params['op_type']
-                            #data[param_name] = params[param_name]
-                    data = data
-                else:
-                    data = None
-                req_url = params_dict['href']
-                (status, raw_response) = self.rest.request(method=method, url=req_url, params=data)
-                app_found = True
-                return (status, raw_response)
-        if not app_found:
+        matches = filter(lambda a: a['name'] == app_name, res)
+        if not matches:
             raise OpenShiftAppException("Can not find the app matching your request")
-            #log.error("Can not find app matching your request '%s'" % app_name)
-            #return ("Error", None)
+        for app in matches:
+            # found match, now do your stuff
+            params_dict = app['links'][action]
+            method = params_dict['method']
+            log.info("Action: %s" % action)
+            data = {}
+
+            data.update(match_params(params_dict['required_params'], params))
+            data.update(match_params(params_dict['optional_params'], params,
+                                     required=False))
+
+            if not data:
+                data = None
+
+            req_url = params_dict['href']
+            return self.rest.request(method=method, url=req_url, params=data)
 
     def get_gears(self, app_name, domain_name=None):
         """ return gears information """
@@ -764,6 +746,30 @@ def perf_test(li):
                 method_call(v)
 
 
+def match_params(valid_params, params, required=True):
+    data = {}
+    if len(valid_params) == 0:
+        return data
+
+    param_name = valid_params[0]['name']
+    rp = valid_params[0]
+    for rp in valid_params:
+        # construct the data
+        param_name = rp['name']
+        if param_name == 'event':
+            if isinstance(rp['valid_options'], list):
+                data[param_name] = rp['valid_options'][0]
+            else:
+                data[param_name] = rp['valid_options']
+        else:
+            if required:
+                data[param_name] = params[param_name]  # cart_name #params['op_type']
+            elif params.get(param_name, None) is not None:
+                data[param_name] = params[param_name]
+            #data[param_name] = params[param_name]
+    return data
+
+
 def command_line():
     (options, args) = config_parser()
     li = Openshift(host=options.ip, user=options.user, passwd=options.password,
@@ -773,4 +779,3 @@ def command_line():
     #status, res = li.app_create(app_name="app1", app_type=["ruby-1.8", "mysql-5.1"], init_git_url="https://github.com/openshift/wordpress-example")
     #status, res = li.app_create(app_name="app2", app_type="php-5.3", init_git_url="https://github.com/openshift/wordpress-example")
     #status, res = li.app_create(app_name="app3", app_type=[{"name": "ruby-1.8"}, {"name": "mysql-5.1"}], init_git_url="https://github.com/openshift/wordpress-example")
-
