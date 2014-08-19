@@ -122,6 +122,7 @@ class RestApi(object):
     port = 443
     username = None
     password = None
+    token = None
     headers = None
     response = None
     base_uri = None
@@ -129,7 +130,7 @@ class RestApi(object):
     debug = False
 
     def __init__(self, host=None, port=443, username=username, password=password,
-                 debug=False, verbose=False, proto=None, headers=None):
+                 token=None, debug=False, verbose=False, proto=None, headers=None):
         if proto is not None:
             self.proto = proto
 
@@ -142,6 +143,9 @@ class RestApi(object):
         if password:
             self.password = password
 
+        if token:
+            self.token = token
+
         if headers:
             self.headers = headers
 
@@ -151,15 +155,14 @@ class RestApi(object):
         self.debug = debug
         self.base_uri = self.proto + "://" + host + "/broker/rest"
 
+    @property
+    def _auth(self):
+        if self.token:
+            return BearerAuth(self.token)
 
-    def _get_auth_headers(self, username=None, password=None):
-        if username:
-            self.username = username
-
-        if password:
-            self.password = password
-
-        return (self.username, self.password)
+        if self.username and self.password:
+            return requests.auth.HTTPBasicAuth(self.username, self.password)
+        return None
 
     def request(self, url, method, headers=None, params=None):
         """
@@ -170,8 +173,6 @@ class RestApi(object):
         else:
             self.url = self.base_uri + url
         log.debug("URL: %s" % self.url)
-        auth = (self.username, self.password)  # self._get_auth_headers()
-        #auth = self._get_auth_headers()
         _headers = self.headers or {}
         if headers:
             _headers.update(headers)
@@ -182,7 +183,7 @@ class RestApi(object):
             _headers['Accept'] = api_version
 
         self.response = requests.request(
-            auth=None if None in auth else auth,
+            auth=None if self._auth is None else self._auth,
             method=method, url=self.url, params=params,
             headers=_headers, timeout=130, verify=False
         )
@@ -218,15 +219,11 @@ class Openshift(object):
     user = None
     passwd = None
 
-    def __init__(self, host, user=None, passwd=None, debug=False, verbose=False, logger=None, proto=None, headers=None):
-        if user:
-            self.user = user
-        if passwd:
-            self.passwd = passwd
+    def __init__(self, host, user=None, passwd=None, token=None, debug=False, verbose=False, logger=None, proto=None, headers=None):
         if logger:
             global log
             log = logger
-        self.rest = RestApi(host=host, username=self.user, password=self.passwd, debug=debug, verbose=verbose, proto=proto, headers=headers)
+        self.rest = RestApi(host=host, username=user, password=passwd, token=token, debug=debug, verbose=verbose, proto=proto, headers=headers)
         if 'OPENSHIFT_REST_API' in os.environ:
             self.REST_API_VERSION = float(os.environ['OPENSHIFT_REST_API'])
         else:
@@ -721,6 +718,15 @@ class Openshift(object):
             return (status, self.rest.response.json()['data'])
         else:
             return (status, res)
+
+
+class BearerAuth(requests.auth.AuthBase):
+    def __init__(self, token):
+        self.token = token
+
+    def __call__(self, r):
+        r.headers['Authorization'] = "Bearer " + self.token
+        return r
 
 
 def command_line():
