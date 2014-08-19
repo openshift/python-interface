@@ -13,7 +13,7 @@ class TestUser(unittest.TestCase):
     """
     Test domain get REST API, under /broker/rest/domains
     The available actions are:
-        UPDATE, DELETE, LIST_APPLICATIONS, GET, ADD_APPLICATION, 
+        UPDATE, DELETE, LIST_APPLICATIONS, GET, ADD_APPLICATION,
     """
     valid_domain_name = "autotest"
 
@@ -30,7 +30,7 @@ class TestUser(unittest.TestCase):
 
         status, res = li.domain_create('invalid domain name')
         expected = "Invalid namespace. Namespace must only contain alphanumeric characters."
-        error_msg = res()['messages'][0]['text']
+        error_msg = res['messages'][0]['text']
         self.assertEqual(error_msg, expected)
 
     def test_domain_create(self):
@@ -69,5 +69,5 @@ if __name__ == '__main__':
     expected = "Invalid namespace: 'invalid domain name'. Namespace must only contain alphanumeric characters."
     error_msg = res.json['messages'][0]['text']
     self.assertEqual(error_msg, expected)
-    """ 
+    """
     unittest.main()

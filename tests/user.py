@@ -45,7 +45,7 @@ class TestUser(unittest.TestCase):
 
     def test_add_key(self):
         key_str = "aaabbbcccdddeeefffggghhhiiijjjkkklllmmmnnnooopppqqqrrrssstttuuuvvvwwwxxxyyyzzz"
-        
+
 if __name__ == '__main__':
     #li = Openshift(host=os.getenv('OPENSHIFT_IP'), user=os.getenv('OPENSHIFT_USER'), passwd=os.getenv('OPENSHIFT_PASSWD'))
     #status, res = li.get_user()
