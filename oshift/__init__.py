@@ -202,12 +202,7 @@ class RestApi(object):
             raise OpenShift500Exception('Internal Server Error: %s' % self.data)
 
         if self.response.status_code == (200 or 201):
-            print("-"*80, file=sys.stderr)
             log.debug("status:  %s" % self.response.status_code)
-            #log.debug("msg: %s" % self.data()['messages'][0]['text'])
-            # the raw_response is not available
-            #log.debug("raw:  %s"%raw_response)
-            print("-"*80, file=sys.stderr)
         return (self.response.status_code, self.data)
 
 
