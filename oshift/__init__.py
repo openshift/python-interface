@@ -765,12 +765,12 @@ def perf_test(li):
                 method_call(v)
 
 
-if __name__ == '__main__':
+def command_line():
     (options, args) = config_parser()
     li = Openshift(host=options.ip, user=options.user, passwd=options.password,
         debug=options.DEBUG,verbose=options.VERBOSE)
     status, res = li.domain_get()
-    self.info('xxx', 1)
+    log.info('xxx', 1)
     #status, res = li.app_create(app_name="app1", app_type=["ruby-1.8", "mysql-5.1"], init_git_url="https://github.com/openshift/wordpress-example")
     #status, res = li.app_create(app_name="app2", app_type="php-5.3", init_git_url="https://github.com/openshift/wordpress-example")
     #status, res = li.app_create(app_name="app3", app_type=[{"name": "ruby-1.8"}, {"name": "mysql-5.1"}], init_git_url="https://github.com/openshift/wordpress-example")
