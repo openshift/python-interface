@@ -28,9 +28,9 @@ class TestUser(unittest.TestCase):
             passwd=os.getenv('OPENSHIFT_PASSWD'))
         self.li = li
         status, res = li.domain_create(self.domain_name)
-        
+
         if status != 201:
-            msg = res()['messages'][0]['text']
+            msg = res['messages'][0]['text']
             raise OpenShiftNullDomainException("Unable to create domain: %s" % msg)
 
     def test_app_create_delete(self):
@@ -40,8 +40,6 @@ class TestUser(unittest.TestCase):
         self.assertTrue(status, 'No Content')
         print status
 
-
-    
     def tearDown(self):
         print "####################"
         status, res = self.li.domain_delete(self.domain_name)

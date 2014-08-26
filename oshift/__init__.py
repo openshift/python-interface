@@ -16,8 +16,9 @@ import time
 import traceback
 import json
 
-import base64
 import requests
+
+from oshift.utils import match_params, perf_test
 
 
 class OpenShiftException(BaseException):
@@ -68,7 +69,7 @@ def config_parser():
     parser.set_defaults(VERBOSE=False)
     parser.set_defaults(DEBUG=False)
     parser.add_option("-d", action="store_true", dest="DEBUG", help="enable DEBUG (default true)")
-    parser.add_option("-i", "--ip", default="openshift.redhat.com", help="ip addaress of your devenv")
+    parser.add_option("-i", "--ip", default="openshift.redhat.com", help="ip address of your devenv")
     parser.add_option("-v", action="store_true", dest="VERBOSE", help="enable VERBOSE printing")
     parser.add_option("-u", "--user", default=None, help="User name")
     parser.add_option("-p", "--password", default=None, help="RHT password")
@@ -121,6 +122,7 @@ class RestApi(object):
     port = 443
     username = None
     password = None
+    token = None
     headers = None
     response = None
     base_uri = None
@@ -128,7 +130,7 @@ class RestApi(object):
     debug = False
 
     def __init__(self, host=None, port=443, username=username, password=password,
-                 debug=False, verbose=False, proto=None, headers=None):
+                 token=None, debug=False, verbose=False, proto=None, headers=None):
         if proto is not None:
             self.proto = proto
 
@@ -141,6 +143,9 @@ class RestApi(object):
         if password:
             self.password = password
 
+        if token:
+            self.token = token
+
         if headers:
             self.headers = headers
 
@@ -150,15 +155,14 @@ class RestApi(object):
         self.debug = debug
         self.base_uri = self.proto + "://" + host + "/broker/rest"
 
+    @property
+    def _auth(self):
+        if self.token:
+            return BearerAuth(self.token)
 
-    def _get_auth_headers(self, username=None, password=None):
-        if username:
-            self.username = username
-
-        if password:
-            self.password = password
-
-        return (self.username, self.password)
+        if self.username and self.password:
+            return requests.auth.HTTPBasicAuth(self.username, self.password)
+        return None
 
     def request(self, url, method, headers=None, params=None):
         """
@@ -169,8 +173,6 @@ class RestApi(object):
         else:
             self.url = self.base_uri + url
         log.debug("URL: %s" % self.url)
-        auth = (self.username, self.password)  # self._get_auth_headers()
-        #auth = self._get_auth_headers()
         _headers = self.headers or {}
         if headers:
             _headers.update(headers)
@@ -181,7 +183,7 @@ class RestApi(object):
             _headers['Accept'] = api_version
 
         self.response = requests.request(
-            auth=None if None in auth else auth,
+            auth=None if self._auth is None else self._auth,
             method=method, url=self.url, params=params,
             headers=_headers, timeout=130, verify=False
         )
@@ -200,12 +202,7 @@ class RestApi(object):
             raise OpenShift500Exception('Internal Server Error: %s' % self.data)
 
         if self.response.status_code == (200 or 201):
-            print("-"*80, file=sys.stderr)
             log.debug("status:  %s" % self.response.status_code)
-            #log.debug("msg: %s" % self.data()['messages'][0]['text'])
-            # the raw_response is not available
-            #log.debug("raw:  %s"%raw_response)
-            print("-"*80, file=sys.stderr)
         return (self.response.status_code, self.data)
 
 
@@ -217,15 +214,11 @@ class Openshift(object):
     user = None
     passwd = None
 
-    def __init__(self, host, user=None, passwd=None, debug=False, verbose=False, logger=None, proto=None, headers=None):
-        if user:
-            self.user = user
-        if passwd:
-            self.passwd = passwd
+    def __init__(self, host, user=None, passwd=None, token=None, debug=False, verbose=False, logger=None, proto=None, headers=None):
         if logger:
             global log
             log = logger
-        self.rest = RestApi(host=host, username=self.user, password=self.passwd, debug=debug, verbose=verbose, proto=proto, headers=headers)
+        self.rest = RestApi(host=host, username=user, password=passwd, token=token, debug=debug, verbose=verbose, proto=proto, headers=headers)
         if 'OPENSHIFT_REST_API' in os.environ:
             self.REST_API_VERSION = float(os.environ['OPENSHIFT_REST_API'])
         else:
@@ -654,44 +647,26 @@ class Openshift(object):
         status, res = self.app_list(domain_name)
 
         action = action.upper()
-        app_found = False
-        #cart_name = params.get('cartridge', None)
 
-        for app in res:
-        #for app in res['data']:
-
-            if app['name'] == app_name:
-                # found match, now do your stuff
-                params_dict = app['links'][action]
-                method = params_dict['method']
-                log.info("Action: %s" % action)
-                data = {}
-                if len(params_dict['required_params']) > 0:
-                    param_name = params_dict['required_params'][0]['name']
-                    rp = params_dict['required_params'][0]
-                    #data[param_name] = cart_name #'name'] = rp['name']
-                    for rp in params_dict['required_params']:
-                        # construct the data
-                        param_name = rp['name']
-                        if param_name == 'event':
-                            if isinstance(rp['valid_options'], list):
-                                data[param_name] = rp['valid_options'][0]
-                            else:
-                                data[param_name] = rp['valid_options']
-                        else:
-                            data[param_name] = params[param_name]  # cart_name #params['op_type']
-                            #data[param_name] = params[param_name]
-                    data = data
-                else:
-                    data = None
-                req_url = params_dict['href']
-                (status, raw_response) = self.rest.request(method=method, url=req_url, params=data)
-                app_found = True
-                return (status, raw_response)
-        if not app_found:
+        matches = filter(lambda a: a['name'] == app_name, res)
+        if not matches:
             raise OpenShiftAppException("Can not find the app matching your request")
-            #log.error("Can not find app matching your request '%s'" % app_name)
-            #return ("Error", None)
+        for app in matches:
+            # found match, now do your stuff
+            params_dict = app['links'][action]
+            method = params_dict['method']
+            log.info("Action: %s" % action)
+            data = {}
+
+            data.update(match_params(params_dict['required_params'], params))
+            data.update(match_params(params_dict['optional_params'], params,
+                                     required=False))
+
+            if not data:
+                data = None
+
+            req_url = params_dict['href']
+            return self.rest.request(method=method, url=req_url, params=data)
 
     def get_gears(self, app_name, domain_name=None):
         """ return gears information """
@@ -740,38 +715,21 @@ class Openshift(object):
             return (status, res)
 
 
-def sortedDict(adict):
-    keys = list(adict.keys())
-    keys.sort()
-    return map(adict.get, keys)
+class BearerAuth(requests.auth.AuthBase):
+    def __init__(self, token):
+        self.token = token
+
+    def __call__(self, r):
+        r.headers['Authorization'] = "Bearer " + self.token
+        return r
 
 
-def perf_test(li):
-    cart_types = ['php-5.3']
-    od = {
-        1: {'name': 'app_create', 'params': {'app_name': 'perftest'}},
-        #2: {'name': 'app_delete', 'params': {'app_name': 'perftest'}},
-    }
-    sod = sortedDict(od)
-    #li.domain_create('blahblah')
-    cart_types = ['php-5.3']  # 'php-5.3', 'ruby-1.8', 'jbossas-7']
-    for cart in cart_types:
-        for action in sod:
-            method_call = getattr(li, action['name'])
-            k, v = list(action['params'].items()[0])
-            if action['name'] == 'app_create':
-                method_call(v, cart)
-            else:
-                method_call(v)
-
-
-if __name__ == '__main__':
+def command_line():
     (options, args) = config_parser()
     li = Openshift(host=options.ip, user=options.user, passwd=options.password,
         debug=options.DEBUG,verbose=options.VERBOSE)
     status, res = li.domain_get()
-    self.info('xxx', 1)
+    log.info('xxx', 1)
     #status, res = li.app_create(app_name="app1", app_type=["ruby-1.8", "mysql-5.1"], init_git_url="https://github.com/openshift/wordpress-example")
     #status, res = li.app_create(app_name="app2", app_type="php-5.3", init_git_url="https://github.com/openshift/wordpress-example")
     #status, res = li.app_create(app_name="app3", app_type=[{"name": "ruby-1.8"}, {"name": "mysql-5.1"}], init_git_url="https://github.com/openshift/wordpress-example")
-

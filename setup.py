@@ -19,4 +19,8 @@ setup(
     url = "https://github.com/openshift/python-interface",   # project home page, if any
 
     # could also include long_description, download_url, classifiers, etc.
+    entry_points = """
+    [console_scripts]
+    oshift = oshift:command_line
+    """,
 )
