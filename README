@@ -1,8 +1,11 @@
 README
 ==============================================================================
 
-This is a python interface for the Openshift v2 REST API.  Check 
+This is a python interface for the OpenShift v2 REST API.  Check 
 oshift/__init__.py for the class file.
+
+For OpenShift v3 and above, please go to
+https://github.com/openshift/openshift-restclient-python
 
 [2012-11-19]
 Use python requests module instead of httplib for a cleaner interface.  
